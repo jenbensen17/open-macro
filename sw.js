@@ -1,8 +1,8 @@
 // Offline app shell. API calls (Open Food Facts / USDA) always go to the network.
-const CACHE = 'open-macro-v1';
+const CACHE = 'open-macro-v2';
 const SHELL = [
   './', 'index.html', 'manifest.webmanifest', 'css/style.css',
-  'js/app.js', 'js/core.js', 'js/db.js', 'js/api.js', 'js/scanner.js',
+  'js/app.js', 'js/core.js', 'js/db.js', 'js/api.js', 'js/scanner.js', 'js/util.js', 'js/kitchen.js', 'js/kitchen-core.js',
   'vendor/zxing.min.js', 'icons/icon.svg', 'icons/icon-192.png', 'icons/icon-512.png', 'icons/apple-touch-icon.png',
 ];
 

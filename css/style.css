@@ -61,3 +61,31 @@ label { display: block; font-size: 13px; color: var(--muted); } label input, lab
 .spin { display: inline-block; width: 12px; height: 12px; border: 2px solid var(--line); border-top-color: var(--accent); border-radius: 50%; animation: sp .8s linear infinite; vertical-align: -1px; } @keyframes sp { to { transform: rotate(360deg); } }
 #toast { position: fixed; left: 50%; bottom: calc(env(safe-area-inset-bottom) + 90px); transform: translate(-50%, 20px); background: #111; color: #fff; padding: 10px 16px; border-radius: 99px; font-size: 14px; opacity: 0; pointer-events: none; transition: .25s; z-index: 20; max-width: 90vw; }
 #toast.show { opacity: 1; transform: translate(-50%, 0); }
+
+/* kitchen */
+.mt { margin-top: 10px; }
+.seg.sub { position: sticky; top: env(safe-area-inset-top); z-index: 4; background: var(--bg); padding: 4px 0 8px; margin: 0 0 6px; }
+.seg.wrap { flex-wrap: wrap; } .seg.wrap button { flex: 0 1 auto; padding: 6px 12px; }
+.badge { font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 99px; background: var(--track); color: var(--muted); white-space: nowrap; }
+.badge.bad { background: color-mix(in srgb, var(--danger) 18%, transparent); color: var(--danger); }
+.badge.soon { background: color-mix(in srgb, var(--c) 22%, transparent); color: #b45309; }
+.badge.ok { background: color-mix(in srgb, var(--accent) 18%, transparent); color: var(--accent); }
+.badge.wide { display: block; white-space: normal; padding: 6px 10px; border-radius: 10px; }
+.card.warn { border-color: color-mix(in srgb, var(--c) 55%, var(--line)); } .card.today { border-color: var(--accent); }
+.check { display: flex; align-items: center; gap: 8px; color: var(--text); font-size: 15px; }
+.check input { width: 20px; min-height: 20px; height: 20px; margin: 0; accent-color: var(--accent); flex: none; }
+.chip { border: 1px solid var(--line); border-radius: 99px; padding: 4px 10px; font-size: 14px; }
+.filters { margin: 0 0 10px; } .filters select { width: auto; min-height: 36px; padding: 6px 10px; font-size: 14px; }
+textarea { font: inherit; font-size: 16px; color: var(--text); background: var(--bg); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; width: 100%; margin-top: 4px; resize: vertical; }
+.grid3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; }
+.stars { display: flex; gap: 2px; } .stars button { border: 0; background: none; font-size: 26px; color: var(--track); padding: 0 2px; } .stars button.on { color: #f59e0b; }
+.have { color: var(--accent); font-weight: 700; width: 18px; } .need { color: var(--muted); width: 18px; }
+.steps { margin: 0; padding-left: 22px; } .steps li { margin: 0 0 8px; }
+.slot { width: 72px; flex: none; }
+.shop.checked .t { text-decoration: line-through; color: var(--muted); }
+.tick { width: 26px; height: 26px; border-radius: 50%; border: 2px solid var(--line); background: none; color: var(--accent-ink); font-weight: 800; flex: none; padding: 0; }
+.shop.checked .tick { background: var(--accent); border-color: var(--accent); }
+.tbl { width: 100%; border-collapse: collapse; margin: 10px 0; font-size: 14px; } .tbl th, .tbl td { text-align: right; padding: 4px 2px; } .tbl th:first-child, .tbl td:first-child { text-align: left; }
+.tbl th { color: var(--muted); font-weight: 600; font-size: 12px; }
+.tab { font-size: 10px; } .tab span { font-size: 20px; }
+.row.wrap + .card, .row.wrap + section { margin-top: 10px; }

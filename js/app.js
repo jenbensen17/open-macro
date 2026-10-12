@@ -5,6 +5,8 @@ import {
 import * as db from './db.js';
 import { offSearch, usdaSearch, lookupBarcode } from './api.js';
 import { startScan } from './scanner.js';
+import { $, esc, f0, f1, uid } from './util.js';
+import * as K from './kitchen.js';
 
 // ---------------------------------------------------------------- state
 const MEALS = [
@@ -14,8 +16,9 @@ const MEALS = [
 const DEFAULTS = {
   setup: false, sex: 'male', birthYear: 1995, heightCm: 175, activity: 'light', useLb: true,
   rate: -0.5, proteinPerKg: 2.0, fatPct: 0.3, startKg: 80, usdaKey: 'DEMO_KEY',
+  stores: ['Groceries'], profiles: [], staples: [], dayThemes: {},
 };
-const S = { tab: 'diary', day: dayStr(), foods: [], entries: [], weights: [], range: 90, settings: loadSettings() };
+const S = { tab: 'diary', day: dayStr(), range: 90, settings: loadSettings(), ...Object.fromEntries(db.STORES.map((s) => [s, []])) };
 
 function loadSettings() {
   try { return { ...DEFAULTS, ...JSON.parse(localStorage.getItem('om.settings') || '{}') }; } catch { return { ...DEFAULTS }; }
@@ -23,17 +26,14 @@ function loadSettings() {
 function saveSettings() { localStorage.setItem('om.settings', JSON.stringify(S.settings)); }
 
 async function reload() {
-  [S.foods, S.entries, S.weights] = await Promise.all([db.all('foods'), db.all('entries'), db.all('weights')]);
+  const data = await Promise.all(db.STORES.map((s) => db.all(s)));
+  db.STORES.forEach((s, i) => { S[s] = data[i]; });
 }
 
 // ---------------------------------------------------------------- helpers
-const $ = (sel, root = document) => root.querySelector(sel);
-const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-const f0 = (n) => Math.round(n).toLocaleString();
-const f1 = (n) => (Math.round(n * 10) / 10).toString();
-const uid = () => crypto.randomUUID();
 const unit = () => (S.settings.useLb ? 'lb' : 'kg');
 const entryN = (e) => forGrams(e.per100, e.grams);
+const amountText = (e) => (e.servingLabel === 'serving' ? `${f1(e.grams / e.servingG)} serving${e.grams === e.servingG ? '' : 's'}` : `${f0(e.grams)} g`);
 const mealName = (k) => MEALS.find((m) => m.k === k)?.n ?? k;
 
 function toast(msg) {
@@ -76,7 +76,7 @@ function render() {
   const nav = document.querySelector('nav');
   if (!S.settings.setup) { nav.style.display = 'none'; v.innerHTML = viewSettings(true); return; }
   nav.style.display = '';
-  v.innerHTML = { diary: viewDiary, weight: viewWeight, foods: viewFoods, settings: () => viewSettings(false) }[S.tab]();
+  v.innerHTML = { diary: viewDiary, weight: viewWeight, kitchen: K.view, foods: viewFoods, settings: () => viewSettings(false) }[S.tab]();
 }
 
 function ring(consumed, target) {
@@ -107,7 +107,7 @@ function viewDiary() {
     return `<section class="card meal">
       <div class="meal-h"><h3>${m.n}</h3><span class="muted">${f0(mt.cal)} kcal</span></div>
       ${list.map((e) => { const n = entryN(e); return `<div class="row item" data-a="edit-entry" data-id="${e.id}">
-        <div class="grow"><div class="t">${esc(e.name)}</div><div class="muted s">${esc(e.brand ? e.brand + ' · ' : '')}${f0(e.grams)} g · P${f0(n.protein)} C${f0(n.carbs)} F${f0(n.fat)}</div></div>
+        <div class="grow"><div class="t">${esc(e.name)}</div><div class="muted s">${esc(e.brand ? e.brand + ' · ' : '')}${amountText(e)} · P${f0(n.protein)} C${f0(n.carbs)} F${f0(n.fat)}</div></div>
         <div class="kcal">${f0(n.cal)}</div></div>`; }).join('') || '<div class="muted s empty">Nothing logged</div>'}
       <div class="row gap"><button class="btn small" data-a="add" data-meal="${m.k}">+ Add food</button>
       ${canCopy ? `<button class="btn small ghost" data-a="copy-meal" data-meal="${m.k}">Copy from yesterday</button>` : ''}</div>
@@ -271,12 +271,14 @@ function openPortion(ctx) {
   P = ctx;
   const f = ctx.food;
   const grams = ctx.entry ? ctx.entry.grams : f.servingG;
-  const hasServ = f.servingG && f.servingG !== 100;
+  const perServing = f.servingLabel === 'serving'; // recipe entries are counted in servings
+  const hasServ = (f.servingG && f.servingG !== 100) || perServing;
+  const useServ = hasServ && (!ctx.entry || perServing);
   modal(`<header><button class="btn small ghost" data-a="${ctx.entry ? 'close' : 'back-add'}">‹ Back</button><h2 class="grow">${esc(f.name)}</h2></header>
     <div class="muted s">${esc(f.brand || '')}</div>
     <form data-form="portion" class="form">
-      <div class="row gap"><label class="grow">Amount<input id="p-qty" name="qty" type="number" inputmode="decimal" step="any" min="0" value="${hasServ && !ctx.entry ? 1 : f1(grams)}" required></label>
-      <label>Unit<select id="p-unit" name="unit"><option value="g" ${hasServ && !ctx.entry ? '' : 'selected'}>grams</option>${hasServ ? `<option value="s" ${ctx.entry ? '' : 'selected'}>× ${esc(f.servingLabel)}</option>` : ''}</select></label></div>
+      <div class="row gap"><label class="grow">Amount<input id="p-qty" name="qty" type="number" inputmode="decimal" step="any" min="0" value="${useServ ? f1(ctx.entry ? grams / f.servingG : 1) : f1(grams)}" required></label>
+      <label>Unit<select id="p-unit" name="unit"><option value="g" ${useServ ? '' : 'selected'}>grams</option>${hasServ ? `<option value="s" ${useServ ? 'selected' : ''}>× ${esc(f.servingLabel)}</option>` : ''}</select></label></div>
       <div id="p-prev" class="card prev"></div>
       ${ctx.entry ? '' : `<label>Meal<select name="meal">${MEALS.map((m) => `<option value="${m.k}" ${m.k === ctx.meal ? 'selected' : ''}>${m.n}</option>`).join('')}</select></label>`}
       <div class="row gap"><button class="btn primary grow" type="submit">${ctx.entry ? 'Update' : 'Log food'}</button>
@@ -429,7 +431,7 @@ const actions = {
   'edit-entry': (el) => {
     const e = S.entries.find((x) => x.id === el.dataset.id);
     const food = S.foods.find((f) => f.id === e.foodId) || {};
-    openPortion({ entry: e, food: { ...food, name: e.name, brand: e.brand, per100: e.per100, servingG: food.servingG || 100, servingLabel: food.servingLabel || '100 g' }, meal: e.meal, day: e.day });
+    openPortion({ entry: e, food: { ...food, name: e.name, brand: e.brand, per100: e.per100, servingG: e.servingG || food.servingG || 100, servingLabel: e.servingLabel || food.servingLabel || '100 g' }, meal: e.meal, day: e.day });
   },
   'del-entry': async () => { await db.del('entries', P.entry.id); await reload(); closeModal(); render(); },
   scan: openScan,
@@ -468,7 +470,7 @@ const actions = {
   'del-weight': async (el) => { await db.del('weights', el.dataset.day); await reload(); render(); },
   range: (el) => { S.range = +el.dataset.d; render(); },
   'export-json': async () => {
-    download(`open-macro-backup-${dayStr()}.json`, JSON.stringify({ version: 1, settings: S.settings, foods: S.foods, entries: S.entries, weights: S.weights }), 'application/json');
+    download(`open-macro-backup-${dayStr()}.json`, JSON.stringify({ version: 2, settings: S.settings, ...Object.fromEntries(db.STORES.map((s) => [s, S[s]])) }), 'application/json');
   },
   'export-csv': () => {
     const q = (s) => `"${String(s ?? '').replace(/"/g, '""')}"`;
@@ -557,6 +559,10 @@ const forms = {
 };
 
 // ---------------------------------------------------------------- wiring
+K.init({ S, modal, closeModal, toast, reload, render, insights, MEALS, entryN, saveSettings });
+Object.assign(actions, K.actions);
+Object.assign(forms, K.forms);
+
 document.addEventListener('click', (e) => {
   const tab = e.target.closest('.tab');
   if (tab) { S.tab = tab.dataset.tab; render(); window.scrollTo(0, 0); return; }
@@ -573,6 +579,7 @@ document.addEventListener('submit', async (e) => {
 });
 
 document.addEventListener('input', (e) => {
+  if (K.onInput(e)) return;
   if (e.target.id === 'p-qty' || e.target.id === 'p-unit') updatePortion();
   else if (e.target.id === 'add-q') { A.q = e.target.value; $('#add-list').innerHTML = addListHtml(); }
   else if (e.target.id === 'food-filter') { foodFilter = e.target.value; $('#food-list').innerHTML = foodRows(S.foods.filter((f) => `${f.name} ${f.brand}`.toLowerCase().includes(foodFilter.toLowerCase())).sort((a, b) => a.name.localeCompare(b.name))); }
@@ -580,13 +587,14 @@ document.addEventListener('input', (e) => {
 });
 
 document.addEventListener('change', async (e) => {
+  if (e.target.matches('#k-canmake, #k-sort, #k-col, #k-for')) { K.onInput(e); return; }
   if (e.target.id !== 'import-file' || !e.target.files[0]) return;
   try {
     const data = JSON.parse(await e.target.files[0].text());
     if (!Array.isArray(data.entries) || !Array.isArray(data.weights) || !Array.isArray(data.foods)) throw new Error('Not an Open Macro backup');
     if (!confirm('Replace all data on this device with the backup?')) return;
-    await Promise.all(['foods', 'entries', 'weights'].map((s) => db.clear(s)));
-    await Promise.all([db.putMany('foods', data.foods), db.putMany('entries', data.entries), db.putMany('weights', data.weights)]);
+    await Promise.all(db.STORES.map((s) => db.clear(s)));
+    await Promise.all(db.STORES.map((s) => db.putMany(s, data[s] || [])));
     S.settings = { ...DEFAULTS, ...data.settings }; saveSettings();
     await reload(); render(); toast('Backup restored');
   } catch (err) { toast('Restore failed: ' + err.message); }
